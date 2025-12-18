@@ -109,7 +109,12 @@ print_table_row(){
 extract_ver(){
   local version_string="$1"
   local extracted
-  extracted=$(echo "$version_string" | grep -Eo '[0-9]+\.[0-9]+(\.[0-9]+)?' | tr -d '\n\r')
+  extracted=$(
+    echo "$version_string" \
+      | grep -Eo '[0-9]+\.[0-9]+(\.[0-9]+)?' \
+      | head -n1 \
+      | tr -d '\n\r'
+  )
   if [[ -n "$extracted" ]]; then
     echo "$extracted"
   else
@@ -123,6 +128,7 @@ CLI_LIST=(
   "Qoder|qodercli|@qoder-ai/qodercli|npm"
   "Codex|codex|@openai/codex|npm"
   "Gemini|gemini|@google/gemini-cli|npm"
+  "Cline CLI|cline|cline|npm|version"
   "Claude Code|claude|@anthropic-ai/claude-code|npm"
   "Qwen Code|qwen|@qwen-code/qwen-code@latest|npm"
   "Grok|grok|@vibe-kit/grok-cli|npm"
@@ -133,9 +139,14 @@ CLI_LIST=(
 # ---------- 本地版本 ----------
 get_local_version(){
   local cmd="$1"
+  local ver_cmd="${2:-}"
   if command -v "$cmd" >/dev/null 2>&1; then
     local raw
-    raw=$("$cmd" --version 2>/dev/null || "$cmd" -v 2>/dev/null || echo "-")
+    if [[ -n "$ver_cmd" ]]; then
+      raw=$("$cmd" "$ver_cmd" 2>/dev/null || echo "-")
+    else
+      raw=$("$cmd" --version 2>/dev/null || "$cmd" -v 2>/dev/null || "$cmd" version 2>/dev/null || echo "-")
+    fi
     extract_ver "$raw"
   else
     echo "-"
@@ -365,9 +376,9 @@ show_status(){
   divider
   local idx=1
   for entry in "${CLI_LIST[@]}"; do
-    IFS='|' read -r name cmd pkg mgr <<< "$entry"
+    IFS='|' read -r name cmd pkg mgr ver_cmd <<< "$entry"
     local cur lat stat conflict_msg
-    cur="$(get_local_version "$cmd")"
+    cur="$(get_local_version "$cmd" "$ver_cmd")"
     lat="$(get_latest_version "$pkg" "$mgr")"
     
     # 确定状态文本和颜色
@@ -426,7 +437,7 @@ while true; do
     [0-9]*) 
       sel="${CLI_LIST[$((choice-1))]}"
       if [[ -n "$sel" ]]; then
-        IFS='|' read -r name cmd pkg mgr <<< "$sel"
+        IFS='|' read -r name cmd pkg mgr _ver_cmd <<< "$sel"
         upgrade_cli "$pkg" "$mgr"
       else
         echo "❌ 无效编号"
@@ -435,8 +446,8 @@ while true; do
     u)
       echo "🔄 升级所有可升级 CLI ..."
       for entry in "${CLI_LIST[@]}"; do
-        IFS='|' read -r name cmd pkg mgr <<< "$entry"
-        cur="$(get_local_version "$cmd")"
+        IFS='|' read -r name cmd pkg mgr ver_cmd <<< "$entry"
+        cur="$(get_local_version "$cmd" "$ver_cmd")"
         [[ "$cur" == "-" ]] && continue
         lat="$(get_latest_version "$pkg" "$mgr")"
         [[ "$lat" == "-" ]] && continue
@@ -448,8 +459,8 @@ while true; do
     ua)
       echo "🔄 升级所有已安装 CLI ..."
       for entry in "${CLI_LIST[@]}"; do
-        IFS='|' read -r name cmd pkg mgr <<< "$entry"
-        cur="$(get_local_version "$cmd")"
+        IFS='|' read -r name cmd pkg mgr ver_cmd <<< "$entry"
+        cur="$(get_local_version "$cmd" "$ver_cmd")"
         [[ "$cur" == "-" ]] || upgrade_cli "$pkg" "$mgr"
       done
       ;; 
@@ -457,7 +468,7 @@ while true; do
       read -rp "输入要删除的编号: " idx
       sel="${CLI_LIST[$((idx-1))]}"
       if [[ -n "$sel" ]]; then
-        IFS='|' read -r name cmd pkg mgr <<< "$sel"
+        IFS='|' read -r name cmd pkg mgr _ver_cmd <<< "$sel"
         uninstall_cli "$pkg" "$mgr"
       else
         echo "❌ 无效编号"
@@ -467,7 +478,7 @@ while true; do
       read -rp "⚠️ 确定删除所有 CLI？(y/n): " c
       if [[ "$c" == "y" ]]; then
         for entry in "${CLI_LIST[@]}"; do
-          IFS='|' read -r _ _ pkg mgr <<< "$entry"
+          IFS='|' read -r _ _ pkg mgr _ver_cmd <<< "$entry"
           uninstall_cli "$pkg" "$mgr"
         done
       else

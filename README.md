@@ -1,6 +1,6 @@
 # AI CLI 管理器（v1.0.0）
 
-一个跨平台的 zsh/bash 工具，用于**检测、升级、卸载**常见 AI Coding CLI：Qoder、Codex, Gemini, Claude Code, Qwen, Grok, IFlow, Kimi。
+一个跨平台的 zsh/bash 工具，用于**检测、升级、卸载**常见 AI Coding CLI：Qoder、Codex, Gemini, Cline CLI, Claude Code, Qwen, Grok, IFlow, Kimi。
 
 ---
 
@@ -73,6 +73,7 @@ q      退出
 | Qoder       | `qodercli` | `@qoder-ai/qodercli`          | npm | [https://qoder.com/cli](https://qoder.com/cli)                                 | [https://github.com/qoder-ai/qodercli](https://github.com/qoder-ai/qodercli)               |
 | Codex       | `codex`  | `@openai/codex`               | npm | [https://openai.com/codex](https://openai.com/codex)                           | [https://github.com/openai/codex](https://github.com/openai/codex)                         |
 | Gemini      | `gemini` | `@google/gemini-cli`          | npm | [https://gemini.google/cli](https://gemini.google/cli)                         | [https://github.com/google/gemini-cli](https://github.com/google/gemini-cli)               |
+| Cline CLI   | `cline`  | `cline`                       | npm | [https://docs.cline.bot/cline-cli/overview](https://docs.cline.bot/cline-cli/overview) | - |
 | Claude Code | `claude` | `@anthropic-ai/claude-code`   | npm | [https://www.anthropic.com/claude-code](https://www.anthropic.com/claude-code) | [https://github.com/anthropic-ai/claude-code](https://github.com/anthropic-ai/claude-code) |
 | Qwen Code   | `qwen`   | `@qwen-code/qwen-code@latest` | npm | [https://github.com/QwenLM/qwen-code](https://github.com/QwenLM/qwen-code)     | [https://github.com/QwenLM/qwen-code](https://github.com/QwenLM/qwen-code)                 |
 | Grok        | `grok`   | `@vibe-kit/grok-cli`          | npm | [https://grok.ai/cli](https://grok.ai/cli)                                     | [https://github.com/vibe-kit/grok-cli](https://github.com/vibe-kit/grok-cli)               |
