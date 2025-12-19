@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ==============================================
-# AI CLI 管理器 v1.0.0
+# AI CLI 管理器 v1.0.1
 # - Qoder CLI 改为 qodercli --version
 # - 逐项检测版本（cmd --version / -v）
 # - Gemini: npm 管理
@@ -11,7 +11,7 @@
 
 set -o pipefail
 
-SCRIPT_VERSION="1.0.0"
+SCRIPT_VERSION="1.0.1"
 SCRIPT_PATH="$(cd "$(dirname "$0")" && pwd)/$(basename "$0")"
 AUTO_MODE=0
 CRON_MARKER="# AI CLI 管理器自动更新"
@@ -33,7 +33,7 @@ AI CLI 管理器 v${SCRIPT_VERSION}
   $(basename "$0")                        # 进入交互界面
   $(basename "$0") --version              # 显示版本号
   $(basename "$0") --help                 # 显示帮助
-  $(basename "$0") --auto-upgrade         # 非交互：升级所有“可升级”的已安装 CLI（定时任务入口）
+  $(basename "$0") --auto-upgrade         # 非交互：升级所有“可升级”的已安装 CLI，并显示当前版本
   $(basename "$0") --setup-daily [HH:MM]  # 写入 crontab：每日 HH:MM 自动升级（默认 03:00）
   $(basename "$0") --remove-daily         # 移除自动升级的 crontab 条目
 EOF
@@ -100,6 +100,13 @@ print_table_row(){
   else
     printf "\n"
   fi
+}
+
+print_table_row_short(){
+  local no="$1" name="$2" cur="$3"
+  pad_display_right "$no" "$COL_NO"; printf "  "
+  pad_display "$name" "$COL_NAME"; printf "  "
+  pad_display "$cur" "$COL_VER"; printf "\n"
 }
 
 # 提取版本号（修复了换行符问题）
@@ -248,6 +255,9 @@ auto_upgrade_installed(){
   if [[ "$upgraded" -eq 0 ]]; then
     echo "✅ 已安装的 CLI 均为最新，无需升级。"
   fi
+  echo
+  echo "📋 当前版本："
+  show_current_versions
 }
 
 # ---------- crontab 管理 ----------
@@ -266,9 +276,9 @@ install_cron_job(){
 
   local time_input="${1:-}"
   if [[ -z "$time_input" && -t 0 ]]; then
-    read -rp "⏰ 输入每天自动升级时间 (HH:MM，默认 03:00): " time_input
+    read -rp "⏰ 输入每天自动升级时间 (HH:MM，默认 10:00): " time_input
   fi
-  [[ -z "$time_input" ]] && time_input="03:00"
+  [[ -z "$time_input" ]] && time_input="10:00"
 
   if ! cron_time="$(parse_time "$time_input")"; then
     echo -e "${RED}❌ 时间格式错误，请使用 HH:MM（例如 03:00 或 18:30）。${NC}"
@@ -313,59 +323,6 @@ remove_cron_job(){
   rm -f "$tmp"
 }
 
-# ---------- 自动升级（非交互，可用于定时任务） ----------
-auto_upgrade_installed(){
-  AUTO_MODE=1
-  ensure_npm || exit 1
-  for entry in "${CLI_LIST[@]}"; do
-    IFS='|' read -r _name cmd pkg mgr ver_cmd <<< "$entry"
-    cur="$(get_local_version "$cmd" "$ver_cmd")"
-    [[ "$cur" == "-" ]] || upgrade_cli "$pkg" "$mgr"
-  done
-}
-
-# ---------- crontab 管理 ----------
-install_cron_job(){
-  if ! command -v crontab >/dev/null 2>&1; then
-    echo -e "${RED}❌ 未找到 crontab，无法写入计划任务。${NC}"
-    return 1
-  fi
-  local marker="# AI CLI 管理器自动更新"
-  local line="0 3 * * * \"${SCRIPT_PATH}\" --auto-upgrade >/tmp/ai-manager-auto.log 2>&1"
-  local tmp
-  tmp="$(mktemp)"
-  crontab -l 2>/dev/null | grep -v "$marker" | grep -v "$SCRIPT_PATH --auto-upgrade" >"$tmp" || true
-  echo "$marker" >>"$tmp"
-  echo "$line" >>"$tmp"
-  if crontab "$tmp"; then
-    echo -e "${GREEN}✅ 已写入 crontab：每日 03:00 自动升级已安装 CLI${NC}"
-  else
-    echo -e "${RED}❌ 写入 crontab 失败${NC}"
-    rm -f "$tmp"
-    return 1
-  fi
-  rm -f "$tmp"
-}
-
-remove_cron_job(){
-  if ! command -v crontab >/dev/null 2>&1; then
-    echo -e "${RED}❌ 未找到 crontab，无法移除计划任务。${NC}"
-    return 1
-  fi
-  local marker="# AI CLI 管理器自动更新"
-  local tmp
-  tmp="$(mktemp)"
-  crontab -l 2>/dev/null | grep -v "$marker" | grep -v "$SCRIPT_PATH --auto-upgrade" >"$tmp" || true
-  if crontab "$tmp"; then
-    echo -e "${GREEN}✅ 已移除自动更新计划任务${NC}"
-  else
-    echo -e "${RED}❌ 移除计划任务失败${NC}"
-    rm -f "$tmp"
-    return 1
-  fi
-  rm -f "$tmp"
-}
-
 # ---------- 升级 ----------
 upgrade_cli(){
   local pkg="$1" mgr="$2"
@@ -380,15 +337,15 @@ upgrade_cli(){
         rehash 2>/dev/null || true
         hash -r 2>/dev/null || true
 
-        local cmd=""
+        local cmd="" ver_cmd=""
         for entry in "${CLI_LIST[@]}"; do
-            IFS='|' read -r _name _cmd _pkg _mgr <<< "$entry"
-            if [[ "$_pkg" == "$pkg" ]]; then cmd="$_cmd"; break; fi
+            IFS='|' read -r _name _cmd _pkg _mgr _ver_cmd <<< "$entry"
+            if [[ "$_pkg" == "$pkg" ]]; then cmd="$_cmd"; ver_cmd="$_ver_cmd"; break; fi
         done
 
         if [[ -n "$cmd" ]]; then
             local installed_ver
-            installed_ver="$(get_local_version "$cmd")"
+            installed_ver="$(get_local_version "$cmd" "$ver_cmd")"
             local latest_ver
             latest_ver="$(npm view "$pkg" version 2>/dev/null | tr -d '\n\r' || echo "-")"
             
@@ -563,6 +520,21 @@ show_status(){
     # 打印行（按显示宽度补齐，避免中文宽字符导致错位）
     print_table_row "$idx" "$name" "$cur" "$lat" "$status_text" "$conflict_msg" "$color"
     
+    idx=$((idx+1))
+  done
+  divider
+}
+
+show_current_versions(){
+  divider
+  print_table_row_short "No." "CLI 名称" "当前版本"
+  divider
+  local idx=1
+  for entry in "${CLI_LIST[@]}"; do
+    IFS='|' read -r name cmd _pkg _mgr ver_cmd <<< "$entry"
+    local cur
+    cur="$(get_local_version "$cmd" "$ver_cmd")"
+    print_table_row_short "$idx" "$name" "$cur"
     idx=$((idx+1))
   done
   divider
