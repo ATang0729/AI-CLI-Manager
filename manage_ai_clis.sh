@@ -12,6 +12,11 @@
 set -o pipefail
 
 SCRIPT_VERSION="1.0.0"
+SCRIPT_PATH="$(cd "$(dirname "$0")" && pwd)/$(basename "$0")"
+AUTO_MODE=0
+CRON_MARKER="# AI CLI 管理器自动更新"
+SCRIPT_PATH="$(cd "$(dirname "$0")" && pwd)/$(basename "$0")"
+AUTO_MODE=0
 
 # ANSI Colors
 RED='\033[0;31m'
@@ -25,22 +30,14 @@ usage(){
 AI CLI 管理器 v${SCRIPT_VERSION}
 
 用法:
-  $(basename "$0")            # 进入交互界面
-  $(basename "$0") --version  # 显示版本号
-  $(basename "$0") --help     # 显示帮助
+  $(basename "$0")                        # 进入交互界面
+  $(basename "$0") --version              # 显示版本号
+  $(basename "$0") --help                 # 显示帮助
+  $(basename "$0") --auto-upgrade         # 非交互：升级所有“可升级”的已安装 CLI（定时任务入口）
+  $(basename "$0") --setup-daily [HH:MM]  # 写入 crontab：每日 HH:MM 自动升级（默认 03:00）
+  $(basename "$0") --remove-daily         # 移除自动升级的 crontab 条目
 EOF
 }
-
-case "${1:-}" in
-  --version|-V)
-    echo "AI CLI 管理器 v${SCRIPT_VERSION}"
-    exit 0
-    ;;
-  --help|-h)
-    usage
-    exit 0
-    ;;
-esac
 
 divider(){ echo "--------------------------------------------------------------------------------"; }
 
@@ -123,7 +120,7 @@ extract_ver(){
 }
 
 # ---------- CLI 列表 ----------
-# 显示名 | 命令 | 包名 | 管理器(npm/uv)
+# 显示名 | 命令 | 包名 | 管理器(npm/uv) | 版本子命令（可选）
 CLI_LIST=(
   "Qoder|qodercli|@qoder-ai/qodercli|npm"
   "Codex|codex|@openai/codex|npm"
@@ -197,6 +194,10 @@ cmp_status(){
 # ---------- uv 依赖 ----------
 ensure_uv(){
   if ! command -v uv >/dev/null 2>&1; then
+    if [[ "$AUTO_MODE" == "1" ]]; then
+      echo -e "${RED}⚠️  AUTO 模式下未找到 uv，跳过 uv 管理的 CLI。${NC}"
+      return 1
+    fi
     echo -e "${YELLOW}⚠️ 需要 uv，是否安装？(y/n) ${NC}"
     read -r c; [[ "$c" == "y" ]] || { echo -e "${BLUE}❌ 取消${NC}"; return 1; }
     curl -LsSf https://astral.sh/uv/install.sh | sh || return 1
@@ -207,11 +208,162 @@ ensure_uv(){
 # ---------- npm 依赖 ----------
 ensure_npm(){
   if ! command -v npm >/dev/null 2>&1; then
+    if [[ "$AUTO_MODE" == "1" ]]; then
+      echo -e "${RED}⚠️  AUTO 模式下未找到 npm，无法自动升级 npm 管理的 CLI。${NC}"
+      return 1
+    fi
     echo -e "${RED}⚠️ 检测到 npm 未安装。许多 CLI 需要 npm 进行管理。${NC}"
     echo "💡 建议通过 Node.js 官网安装 (https://nodejs.org/zh-cn/) 或使用 Homebrew (brew install node)。"
     echo -e "❓ 是否要继续运行脚本？(y/n) ${YELLOW}（如果继续，部分功能可能受限）${NC}"
     read -r c; [[ "$c" == "y" ]] || { echo -e "${BLUE}❌ 取消运行。${NC}"; exit 0; }
   fi
+}
+
+# ---------- 自动升级（非交互，可用于定时任务） ----------
+auto_upgrade_installed(){
+  AUTO_MODE=1
+  local npm_available=1
+  if ! command -v npm >/dev/null 2>&1; then
+    npm_available=0
+    echo -e "${RED}⚠️  AUTO 模式下未找到 npm，跳过 npm 管理的 CLI。${NC}"
+  fi
+  local upgraded=0
+  for entry in "${CLI_LIST[@]}"; do
+    IFS='|' read -r _name cmd pkg mgr ver_cmd <<< "$entry"
+    if [[ "$mgr" == "npm" && "$npm_available" -eq 0 ]]; then
+      continue
+    fi
+    cur="$(get_local_version "$cmd" "$ver_cmd")"
+    [[ "$cur" == "-" ]] && continue
+    lat="$(get_latest_version "$pkg" "$mgr")"
+    if [[ "$lat" == "-" ]]; then
+      echo "ℹ️ 跳过 ${_name}（最新版本未知）"
+      continue
+    fi
+    if [[ "$cur" != "$lat" ]]; then
+      upgrade_cli "$pkg" "$mgr"
+      upgraded=1
+    fi
+  done
+  if [[ "$upgraded" -eq 0 ]]; then
+    echo "✅ 已安装的 CLI 均为最新，无需升级。"
+  fi
+}
+
+# ---------- crontab 管理 ----------
+parse_time(){
+  local input="$1"
+  [[ "$input" =~ ^([01]?[0-9]|2[0-3]):([0-5][0-9])$ ]] || return 1
+  local hour="${BASH_REMATCH[1]}" minute="${BASH_REMATCH[2]}"
+  printf "%02d %02d" "$hour" "$minute"
+}
+
+install_cron_job(){
+  if ! command -v crontab >/dev/null 2>&1; then
+    echo -e "${RED}❌ 未找到 crontab，无法写入计划任务。${NC}"
+    return 1
+  fi
+
+  local time_input="${1:-}"
+  if [[ -z "$time_input" && -t 0 ]]; then
+    read -rp "⏰ 输入每天自动升级时间 (HH:MM，默认 03:00): " time_input
+  fi
+  [[ -z "$time_input" ]] && time_input="03:00"
+
+  if ! cron_time="$(parse_time "$time_input")"; then
+    echo -e "${RED}❌ 时间格式错误，请使用 HH:MM（例如 03:00 或 18:30）。${NC}"
+    return 1
+  fi
+  local hour minute
+  hour="$(echo "$cron_time" | awk '{print $1}')"
+  minute="$(echo "$cron_time" | awk '{print $2}')"
+
+  local line="${minute} ${hour} * * * \"${SCRIPT_PATH}\" --auto-upgrade >/tmp/ai-manager-auto.log 2>&1"
+  local tmp
+  tmp="$(mktemp)"
+  crontab -l 2>/dev/null | grep -v "$CRON_MARKER" | grep -v "$SCRIPT_PATH --auto-upgrade" >"$tmp" || true
+  echo "$CRON_MARKER" >>"$tmp"
+  echo "$line" >>"$tmp"
+  if crontab "$tmp"; then
+    echo -e "${GREEN}✅ 已写入 crontab：每日 ${hour}:${minute} 自动升级已安装（可升级的）CLI${NC}"
+    echo "日志: /tmp/ai-manager-auto.log"
+  else
+    echo -e "${RED}❌ 写入 crontab 失败${NC}"
+    rm -f "$tmp"
+    return 1
+  fi
+  rm -f "$tmp"
+}
+
+remove_cron_job(){
+  if ! command -v crontab >/dev/null 2>&1; then
+    echo -e "${RED}❌ 未找到 crontab，无法移除计划任务。${NC}"
+    return 1
+  fi
+  local tmp
+  tmp="$(mktemp)"
+  crontab -l 2>/dev/null | grep -v "$CRON_MARKER" | grep -v "$SCRIPT_PATH --auto-upgrade" >"$tmp" || true
+  if crontab "$tmp"; then
+    echo -e "${GREEN}✅ 已移除自动更新计划任务${NC}"
+  else
+    echo -e "${RED}❌ 移除计划任务失败${NC}"
+    rm -f "$tmp"
+    return 1
+  fi
+  rm -f "$tmp"
+}
+
+# ---------- 自动升级（非交互，可用于定时任务） ----------
+auto_upgrade_installed(){
+  AUTO_MODE=1
+  ensure_npm || exit 1
+  for entry in "${CLI_LIST[@]}"; do
+    IFS='|' read -r _name cmd pkg mgr ver_cmd <<< "$entry"
+    cur="$(get_local_version "$cmd" "$ver_cmd")"
+    [[ "$cur" == "-" ]] || upgrade_cli "$pkg" "$mgr"
+  done
+}
+
+# ---------- crontab 管理 ----------
+install_cron_job(){
+  if ! command -v crontab >/dev/null 2>&1; then
+    echo -e "${RED}❌ 未找到 crontab，无法写入计划任务。${NC}"
+    return 1
+  fi
+  local marker="# AI CLI 管理器自动更新"
+  local line="0 3 * * * \"${SCRIPT_PATH}\" --auto-upgrade >/tmp/ai-manager-auto.log 2>&1"
+  local tmp
+  tmp="$(mktemp)"
+  crontab -l 2>/dev/null | grep -v "$marker" | grep -v "$SCRIPT_PATH --auto-upgrade" >"$tmp" || true
+  echo "$marker" >>"$tmp"
+  echo "$line" >>"$tmp"
+  if crontab "$tmp"; then
+    echo -e "${GREEN}✅ 已写入 crontab：每日 03:00 自动升级已安装 CLI${NC}"
+  else
+    echo -e "${RED}❌ 写入 crontab 失败${NC}"
+    rm -f "$tmp"
+    return 1
+  fi
+  rm -f "$tmp"
+}
+
+remove_cron_job(){
+  if ! command -v crontab >/dev/null 2>&1; then
+    echo -e "${RED}❌ 未找到 crontab，无法移除计划任务。${NC}"
+    return 1
+  fi
+  local marker="# AI CLI 管理器自动更新"
+  local tmp
+  tmp="$(mktemp)"
+  crontab -l 2>/dev/null | grep -v "$marker" | grep -v "$SCRIPT_PATH --auto-upgrade" >"$tmp" || true
+  if crontab "$tmp"; then
+    echo -e "${GREEN}✅ 已移除自动更新计划任务${NC}"
+  else
+    echo -e "${RED}❌ 移除计划任务失败${NC}"
+    rm -f "$tmp"
+    return 1
+  fi
+  rm -f "$tmp"
 }
 
 # ---------- 升级 ----------
@@ -415,6 +567,30 @@ show_status(){
   done
   divider
 }
+
+# ---------- 参数处理 ----------
+case "${1:-}" in
+  --version|-V)
+    echo "AI CLI 管理器 v${SCRIPT_VERSION}"
+    exit 0
+    ;;
+  --help|-h)
+    usage
+    exit 0
+    ;;
+  --auto-upgrade)
+    auto_upgrade_installed
+    exit 0
+    ;;
+  --setup-daily)
+    install_cron_job "${2:-}"
+    exit 0
+    ;;
+  --remove-daily)
+    remove_cron_job
+    exit 0
+    ;;
+esac
 
 # ---------- 主循环 ----------
 ensure_npm # 检查 npm 状态

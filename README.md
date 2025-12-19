@@ -2,6 +2,8 @@
 
 一个跨平台的 zsh/bash 工具，用于**检测、升级、卸载**常见 AI Coding CLI：Qoder、Codex, Gemini, Cline CLI, Claude Code, Qwen, Grok, IFlow, Kimi。
 
+![Demo.png](demo.png)
+
 ---
 
 ## ✨ 功能
@@ -12,6 +14,7 @@
 * 升级单个 / 升级所有可升级 / 升级所有已安装
 * 卸载单个 / 卸载全部（含顽固残留清理）
 * Kimi 使用 `uv tool`，并显式 `--python 3.13`
+* 支持每日定时自动升级已安装 CLI（自选时间 `HH:MM`，默认 03:00，`--setup-daily [HH:MM]` 写入 crontab，可随时 `--remove-daily` 移除）
 
 ---
 
@@ -19,7 +22,7 @@
 
 ### 🚀 自动安装（推荐）
 
-可以通过以下命令一键安装到系统（默认安装为 `ai-manager` 命令）：
+可以通过以下命令一键安装到系统（默认安装为 `ai-cli-manager` 命令）：
 
 ```bash
 # 请将 <YOUR_GITHUB_USER> 替换为实际的 GitHub 用户名
@@ -28,12 +31,27 @@ curl -sSL https://raw.githubusercontent.com/<YOUR_GITHUB_USER>/manage_ai_clis/ma
 
 安装完成后，直接在终端输入即可启动：
 ```bash
-ai-manager
+ai-cli-manager
 ```
 
 查看版本号：
 ```bash
-ai-manager --version
+ai-cli-manager --version
+```
+
+配置每日自动升级（写入当前用户 crontab，每天 03:00 执行 `--auto-upgrade`）：
+```bash
+ai-cli-manager --setup-daily           # 默认 03:00
+ai-cli-manager --setup-daily 05:30     # 自定义时间
+```
+
+取消每日自动升级：
+```bash
+ai-cli-manager --remove-daily
+```
+手动触发一次自动升级（仅升级有新版本的已安装 CLI，可用于自定义计划任务）：
+```bash
+ai-cli-manager --auto-upgrade
 ```
 
 ### 🐌 手动运行
@@ -48,6 +66,13 @@ chmod +x manage_ai_clis.sh
 查看版本号：
 ```bash
 ./manage_ai_clis.sh --version
+```
+
+自动升级相关同上，使用脚本路径调用：
+```bash
+./manage_ai_clis.sh --setup-daily
+./manage_ai_clis.sh --remove-daily
+./manage_ai_clis.sh --auto-upgrade
 ```
 
 ---
@@ -107,7 +132,7 @@ q      退出
 2.  删除不需要的那个旧版本（例如 `rm /Users/xxx/.local/bin/qodercli`）。
 3.  运行 `hash -r` 刷新缓存。
 
-### 4. 安装完 `ai-manager` 后提示 `command not found`
+### 4. 安装完 `ai-cli-manager` 后提示 `command not found`
 **原因**：自动安装脚本将工具放在了 `~/.local/bin`，但该目录不在您的 PATH 环境变量中。
 **解决方案**：
 将以下内容添加到您的 shell 配置文件（`~/.zshrc` 或 `~/.bashrc`）末尾：
