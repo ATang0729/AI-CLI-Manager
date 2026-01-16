@@ -46,6 +46,7 @@ fi
 # 4. 赋予权限
 if [ -f "$INSTALL_DIR/$BIN_NAME" ]; then
     chmod +x "$INSTALL_DIR/$BIN_NAME"
+    version="$(grep -E '^SCRIPT_VERSION=' "$INSTALL_DIR/$BIN_NAME" | head -n1 | sed -E 's/[^0-9.]+//g')"
 else
     echo -e "${RED}❌ 下载失败，未找到文件。请检查网络或仓库地址。${NC}"
     exit 1
@@ -53,6 +54,9 @@ fi
 
 echo -e "${GREEN}✅ 安装完成！${NC}"
 echo -e "程序位置: ${INSTALL_DIR}/${BIN_NAME}"
+if [ -n "$version" ]; then
+    echo -e "版本: v${version}"
+fi
 
 # 5. 检查 PATH
 case ":$PATH:" in

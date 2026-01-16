@@ -1,6 +1,6 @@
-# AI CLI 管理器（v1.0.1）
+# AI CLI 管理器（v1.0.2）
 
-一个跨平台的 zsh/bash 工具，用于**检测、升级、卸载**常见 AI Coding CLI：Qoder、Codex, Gemini, Cline CLI, Claude Code, Qwen, Grok, IFlow, Kimi。
+一个跨平台的 zsh/bash 工具，用于**检测、升级、卸载**常见 AI Coding CLI：Qoder、Codex、OpenCode AI、Gemini、Cline CLI、Claude Code、Qwen、Grok、IFlow、Kimi。
 
 ![Demo.png](demo.png)
 
@@ -97,6 +97,7 @@ q      退出
 | ----------- | -------- | ----------------------------- | --- | ------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------ |
 | Qoder       | `qodercli` | `@qoder-ai/qodercli`          | npm | [https://qoder.com/cli](https://qoder.com/cli)                                 | [https://github.com/qoder-ai/qodercli](https://github.com/qoder-ai/qodercli)               |
 | Codex       | `codex`  | `@openai/codex`               | npm | [https://openai.com/codex](https://openai.com/codex)                           | [https://github.com/openai/codex](https://github.com/openai/codex)                         |
+| OpenCode AI | `opencode` | `opencode-ai`                | npm | [https://opencode.ai/download](https://opencode.ai/download)                   | - |
 | Gemini      | `gemini` | `@google/gemini-cli`          | npm | [https://gemini.google/cli](https://gemini.google/cli)                         | [https://github.com/google/gemini-cli](https://github.com/google/gemini-cli)               |
 | Cline CLI   | `cline`  | `cline`                       | npm | [https://docs.cline.bot/cline-cli/overview](https://docs.cline.bot/cline-cli/overview) | - |
 | Claude Code | `claude` | `@anthropic-ai/claude-code`   | npm | [https://www.anthropic.com/claude-code](https://www.anthropic.com/claude-code) | [https://github.com/anthropic-ai/claude-code](https://github.com/anthropic-ai/claude-code) |
@@ -150,6 +151,9 @@ export PATH="$HOME/.local/bin:$PATH"
 ---
 
 ## 📝 更新日志
+
+### v1.0.2
+* 新增 OpenCode AI（opencode-ai）支持
 
 ### v1.0.1
 * 新增 Cline CLI 支持与版本识别优化

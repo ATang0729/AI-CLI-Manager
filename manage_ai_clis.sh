@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
 # ==============================================
-# AI CLI 管理器 v1.0.1
+# AI CLI 管理器 v1.0.2
 # - Qoder CLI 改为 qodercli --version
 # - 逐项检测版本（cmd --version / -v）
 # - Gemini: npm 管理
+# - OpenCode AI: npm 管理
 # - Kimi: uv 管理（--python 3.13）
 # - Qwen: 官方命令 @qwen-code/qwen-code@latest
 # - 升级 & 顽固卸载逻辑保持不变
@@ -11,7 +12,7 @@
 
 set -o pipefail
 
-SCRIPT_VERSION="1.0.1"
+SCRIPT_VERSION="1.0.2"
 SCRIPT_PATH="$(cd "$(dirname "$0")" && pwd)/$(basename "$0")"
 AUTO_MODE=0
 CRON_MARKER="# AI CLI 管理器自动更新"
@@ -131,6 +132,7 @@ extract_ver(){
 CLI_LIST=(
   "Qoder|qodercli|@qoder-ai/qodercli|npm"
   "Codex|codex|@openai/codex|npm"
+  "OpenCode AI|opencode|opencode-ai|npm"
   "Gemini|gemini|@google/gemini-cli|npm"
   "Cline CLI|cline|cline|npm|version"
   "Claude Code|claude|@anthropic-ai/claude-code|npm"
