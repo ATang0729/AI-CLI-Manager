@@ -5,7 +5,7 @@
 set -e
 
 # --- 配置区 (请在上传前修改这里，或保持结构一致) ---
-GITHUB_REPO="<YOUR_GITHUB_USER>/manage_ai_clis"
+GITHUB_REPO="ATang0729/manage_ai_clis"
 SCRIPT_NAME="manage_ai_clis.sh"
 BIN_NAME="ai-cli-manager"  # 安装后的命令名称
 INSTALL_DIR="$HOME/.local/bin"
